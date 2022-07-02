@@ -13,8 +13,8 @@ namespace project.certificateStore
 
         public void AddCertificate(X509Certificate2? cert)
         {
-            store.Open(OpenFlags.ReadWrite);
-            store.Add(cert);
+            store.Add(cert);            store.Open(OpenFlags.ReadWrite);
+
         }
     }
 }

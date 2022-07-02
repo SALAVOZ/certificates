@@ -11,9 +11,9 @@ namespace project.Controllers
     public class CertificateController
     {
         private CertificateStore _certificateStore;
-        public CertificateController(CertificateStore certificateStore)
+        public CertificateController()
         {
-            _certificateStore = certificateStore;
+            
         }
 
         [HttpGet]
@@ -36,6 +36,7 @@ namespace project.Controllers
 
             var expirate = DateTimeOffset.Now.AddYears(5);
             var caCert = certReq.CreateSelfSigned(DateTimeOffset.Now, expirate);
+            addAtStore(caCert);
         }
 
         [HttpGet]
@@ -83,6 +84,13 @@ namespace project.Controllers
         {
             var exportCert = new X509Certificate2(clientCert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(clientKey);
             File.WriteAllBytes("client.pfx", exportCert.Export(X509ContentType.Pfx));
+        }
+
+        private void addAtStore(X509Certificate2? cert)
+        {
+            X509Store store = new X509Store("michailStore");
+            store.Open(OpenFlags.ReadWrite);
+            store.Add(cert);
         }
     }
 }
