@@ -33,15 +33,16 @@ namespace project.Controllers
             // Дополнительно настраиваем запрос
             certReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
             certReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(certReq.PublicKey, false));
-
+            var time = DateTimeOffset.Now;
             var expirate = DateTimeOffset.Now.AddYears(5);
-            var caCert = certReq.CreateSelfSigned(DateTimeOffset.Now, expirate);
+            var caCert = certReq.CreateSelfSigned(time, expirate);
             addAtStore(caCert);
+            createCertificate(caCert, time);
         }
 
-        [HttpGet]
-        [Route("cert")]
-        public void createCertificate(X509Certificate2? caCert)
+        //[HttpGet]
+        //[Route("cert")]
+        public void createCertificate(X509Certificate2? caCert, DateTimeOffset signedTime)
         {
             var clientKey = RSA.Create(2048);
             string subject = "CN=192.168.0.*";
@@ -54,10 +55,12 @@ namespace project.Controllers
             // НАЗНАЧАЕМ СЕРТИФИКАТУ СЕРИЙНЫЙ НОМЕР
             byte[] serialNumber = BitConverter.GetBytes(DateTime.Now.ToBinary());
 
-            var expirate = DateTimeOffset.Now.AddYears(5);
-            var clientCert = clientReq.Create(caCert, DateTimeOffset.Now, expirate, serialNumber);
+            var expirate = signedTime.AddYears(5);
+            var clientCert = clientReq.Create(caCert, signedTime, expirate, serialNumber);
 
             StorePfx(clientCert, clientKey);
+            var exportCert = new X509Certificate2(clientCert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(clientKey);
+            File.WriteAllBytes("client.pfx", exportCert.Export(X509ContentType.Pfx));
         }
 
 
