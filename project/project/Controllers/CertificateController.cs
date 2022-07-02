@@ -4,16 +4,20 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
-namespace project.services
+namespace project.Controllers
 {
-    public class CERTIFICATE
+    [ApiController]
+    [Route("api/[controller]")]
+    public class CertificateController
     {
         private CertificateStore _certificateStore;
-        public CERTIFICATE(CertificateStore certificateStore)
+        public CertificateController(CertificateStore certificateStore)
         {
             _certificateStore = certificateStore;
         }
 
+        [HttpGet]
+        [Route("selfsigned")]
         public void createSelfSignedCertificate()
         {
             // Генерируем ассиметричный ключ
@@ -34,6 +38,8 @@ namespace project.services
             var caCert = certReq.CreateSelfSigned(DateTimeOffset.Now, expirate);
         }
 
+        [HttpGet]
+        [Route("cert")]
         public void createCertificate(X509Certificate2? caCert)
         {
             var clientKey = RSA.Create(2048);
@@ -73,7 +79,7 @@ namespace project.services
             File.WriteAllText("private.key", builder.ToString());
         }
 
-        public void StorePfx(X509Certificate2? clientCert, RSA clientKey)
+        private void StorePfx(X509Certificate2? clientCert, RSA clientKey)
         {
             var exportCert = new X509Certificate2(clientCert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(clientKey);
             File.WriteAllBytes("client.pfx", exportCert.Export(X509ContentType.Pfx));
