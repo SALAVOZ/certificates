@@ -8,75 +8,59 @@ namespace project.services
 {
     public class CERTIFICATE
     {
-        private CertificateStore _certificateStore;
-        public CERTIFICATE(CertificateStore certificateStore)
+        public async Task<X509Certificate2> createSelfSignedCertificate(DateTimeOffset time)
         {
-            _certificateStore = certificateStore;
-        }
-
-        public void createSelfSignedCertificate()
-        {
-            // Генерируем ассиметричный ключ
             var rsaKey = RSA.Create(2048);
-
-            // Описываем субъект сертификации
             string subject = "CN=michail.ru";
-
-            // Создаём запрос на сетификат
-            // Режим Pkcs используется по умолчанию
             var certReq = new CertificateRequest(subject, rsaKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-
-            // Дополнительно настраиваем запрос
             certReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
             certReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(certReq.PublicKey, false));
-
             var expirate = DateTimeOffset.Now.AddYears(5);
-            var caCert = certReq.CreateSelfSigned(DateTimeOffset.Now, expirate);
+            var caCert = certReq.CreateSelfSigned(time, expirate);
+            return caCert;
         }
 
-        public void createCertificate(X509Certificate2? caCert)
+        public async Task<X509Certificate2> createCertificate(X509Certificate2 caCert, DateTimeOffset time, RSA Key)
         {
-            var clientKey = RSA.Create(2048);
             string subject = "CN=192.168.0.*";
-            var clientReq = new CertificateRequest(subject, clientKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-
-            clientReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
-            clientReq.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.NonRepudiation, false));
-            clientReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(clientReq.PublicKey, false));
-
-            // НАЗНАЧАЕМ СЕРТИФИКАТУ СЕРИЙНЫЙ НОМЕР
+            var certReq = new CertificateRequest(subject, Key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            certReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+            certReq.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.NonRepudiation, false));
+            certReq.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(certReq.PublicKey, false));
             byte[] serialNumber = BitConverter.GetBytes(DateTime.Now.ToBinary());
-
-            var expirate = DateTimeOffset.Now.AddYears(5);
-            var clientCert = clientReq.Create(caCert, DateTimeOffset.Now, expirate, serialNumber);
-
-            StorePfx(clientCert, clientKey);
+            var clientCert = certReq.Create(caCert, time, time.AddYears(5), serialNumber);
+            return clientCert;
         }
 
-
-        public void StoreCertificate(X509Certificate2? clientCert)
+        public async void writeCert(X509Certificate2 cert, string name)
         {
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("-----BEGIN CERTIFICATE-----");
-            builder.AppendLine(Convert.ToBase64String(clientCert.RawData, Base64FormattingOptions.InsertLineBreaks));
+            builder.AppendLine(Convert.ToBase64String(cert.RawData, Base64FormattingOptions.InsertLineBreaks));
             builder.AppendLine("-----END CERTIFICATE-----");
-            File.WriteAllText("public.crt", builder.ToString());
+            File.WriteAllText(name, builder.ToString());
         }
 
-        public void StorePrivateKey(RSA clientKey)
+        public async void writeKey(RSA key, string name)
         {
-            string name = clientKey.SignatureAlgorithm.ToUpper();
+            string name_key = key.SignatureAlgorithm.ToUpper();
             StringBuilder builder = new StringBuilder();
-            builder.AppendLine($"-----BEGIN {name} PRIVATE KEY-----");
-            builder.AppendLine(Convert.ToBase64String(clientKey.ExportRSAPrivateKey(), Base64FormattingOptions.InsertLineBreaks));
-            builder.AppendLine($"-----END {name} PRIVATE KEY-----");
-            File.WriteAllText("private.key", builder.ToString());
+            builder.AppendLine($"-----BEGIN {name_key} PRIVATE KEY-----");
+            builder.AppendLine(Convert.ToBase64String(key.ExportRSAPrivateKey(), Base64FormattingOptions.InsertLineBreaks));
+            builder.AppendLine($"-----END {name_key} PRIVATE KEY-----");
+            File.WriteAllText(name, builder.ToString());
+        }
+         
+        public async void writePfx(X509Certificate2 Cert, RSA key)
+        {
+            var exportCert = new X509Certificate2(Cert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(key);
+            File.WriteAllBytes("client.pfx", exportCert.Export(X509ContentType.Pfx));
         }
 
-        public void StorePfx(X509Certificate2? clientCert, RSA clientKey)
+        public async void writePKCS12(X509Certificate2 Cert, RSA key)
         {
-            var exportCert = new X509Certificate2(clientCert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(clientKey);
-            File.WriteAllBytes("client.pfx", exportCert.Export(X509ContentType.Pfx));
+            var exportCert = new X509Certificate2(Cert.Export(X509ContentType.Cert), (string)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet).CopyWithPrivateKey(key);
+            File.WriteAllBytes("client.p12", exportCert.Export(X509ContentType.Pkcs12));
         }
     }
 }
